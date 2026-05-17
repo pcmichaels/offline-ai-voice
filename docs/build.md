@@ -16,9 +16,7 @@ From the repository root:
 .\utils\run-docker.ps1
 ```
 
-See also [utils/README.md](../utils/README.md) for script location and options.
-
-The script:
+The script (also documented in the root [README.md](../README.md)):
 
 1. Verifies Docker CLI and engine
 2. Runs `docker compose -f docker/docker-compose.yml build` (unless `-SkipBuild`)
