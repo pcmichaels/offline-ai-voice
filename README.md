@@ -32,7 +32,9 @@ See [docs/spec.md](docs/spec.md) for full requirements and architecture.
 
 ## Not Yet Implemented
 
-- Phase 8 enhancements (VAD, streaming, script flags) — see [docs/todo.md](docs/todo.md)
+- **Post-transcription readback** — after `You said:`, optionally hear the transcript spoken back (TTS) or play the recording ([spec §20](docs/spec.md#20-post-transcription-readback-optional))
+- **Optional translation** — offer Spanish, Mandarin, or German via LM Studio; show `Translation (...):` in the log ([spec §21](docs/spec.md#21-optional-translation-spanish-mandarin-german))
+- Other Phase 8 enhancements (VAD, streaming, script flags) — see [docs/todo.md](docs/todo.md)
 
 ## Planned incremental milestones
 
@@ -46,6 +48,8 @@ See [docs/spec.md](docs/spec.md) for full requirements and architecture.
 | 5b | **Self-test**: broadcast configured phrase while mic listens (`-SelfTest`) — **implemented** |
 | 6 | Multi-turn conversation in session log — **implemented** |
 | 7 | Tests + POC sign-off — **implemented** |
+| 8a | Optional **readback** of transcribed text (TTS) |
+| 8b | Optional **translation** (Spanish / Mandarin / German) |
 
 Details: [docs/todo.md](docs/todo.md), [docs/spec.md](docs/spec.md) sections 17-18.
 
@@ -77,11 +81,19 @@ The script will:
 
 The console shows configuration, **STT/TTS/LM Studio health**, then a **multi-turn push-to-talk** session: record speech, see `You said:` and `Assistant:` text, hear the reply, then ask follow-up questions (`q` to exit). LM Studio is not started by this script.
 
-Optional: `.\utils\run-docker.ps1 -SkipBuild` or `-Configuration Debug`.
+Optional flags:
 
-**Self-test:** `.\docker-run.ps1 -SelfTest` — plays `SelfTest:Phrase` from `data/appsettings.json` through speakers while the mic records (Docker TTS required; no LM Studio). See [docs/spec.md](docs/spec.md) section 19.
+```powershell
+.\utils\run-docker.ps1 -SkipBuild
+.\utils\run-docker.ps1 -Configuration Debug
+.\utils\run-docker.ps1 -NonInteractive   # health panel only; no voice session
+```
 
-You can also run it from `utils/` as `.\run-docker.ps1`. See [utils/README.md](utils/README.md).
+`-NonInteractive` (or `dotnet run -- --no-prompt`) is useful when you only want service health checks and a clean exit.
+
+**Self-test:** `.\docker-run.ps1 -SelfTest` — plays `SelfTest:Phrase` from `data/appsettings.json` through speakers while the mic records (starts Docker STT/TTS; no LM Studio). Optional duration (2–60 s): `-SelfTestSeconds 8` or `--self-test-seconds=8` (default from `SelfTest:DurationSeconds` in config). Deprecated aliases `-MicTest` / `--mic-test` still work with a warning. See [docs/spec.md](docs/spec.md) section 19 and [docs/build.md](docs/build.md#self-test-phase-5b).
+
+You can run the same script from `utils/` as `.\run-docker.ps1` (repo root is resolved automatically).
 
 See [docs/build.md](docs/build.md) for Docker API contract, pinned versions, and troubleshooting.
 
@@ -96,7 +108,7 @@ Configuration summary only; service health checks will show `unreachable` unless
 ## Project structure
 
 - `docker-run.ps1` - Root wrapper for `utils/run-docker.ps1`
-- `utils/run-docker.ps1` - Primary run script (see [utils/README.md](utils/README.md))
+- `utils/run-docker.ps1` - Primary run script (documented above and in [docs/build.md](docs/build.md))
 - `docker/` - Docker Compose, Dockerfiles, STT/TTS HTTP services
 - `agents/` - Local agent personality files (gitignored; see `AGENTS.md`)
 - `data/` - Configuration and persisted data

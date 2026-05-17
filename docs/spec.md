@@ -38,6 +38,11 @@ Primary goals:
 
 Future phases may add VAD-based hands-free mode, streaming, and a graphical UI; they are not required for the initial POC.
 
+### 2.3 Planned post-POC enhancements
+
+1. **Post-transcription readback** - after STT, optionally play the user's words back (section 20).
+2. **Optional translation** - after STT, offer translation to Spanish, Mandarin, or German via LM Studio (section 21).
+
 ## 3. Technology Stack
 
 | Layer | Technology | Role |
@@ -202,6 +207,8 @@ src/
 10. **`utils/run-docker.ps1`** shall not install, start, or configure LM Studio; it may print a reminder if the LLM endpoint is unreachable after the client starts.
 11. **From Phase 2 completion onward**, each numbered implementation phase in `docs/todo.md` shall end with a **phase gate**: `.\utils\run-docker.ps1` runs successfully and demonstrates one new, distinct user-visible behavior (section 17).
 12. **`self-test` mode** shall replace `mic-test` (section 19): simultaneous microphone capture and TTS broadcast of `SelfTest:Phrase`; phrase text echoed in the terminal.
+13. After transcription, the application shall **optionally** read the user's words back (TTS and/or recording playback) per section 20.
+14. After transcription (and optional readback), the application shall **optionally** offer translation to **Spanish, Mandarin, or German** via LM Studio per section 21.
 
 ## 7. Non-Functional Requirements
 
@@ -235,6 +242,11 @@ Example configuration keys (file name and schema finalized in implementation):
 | Session:MaxHistoryMessages | Cap history sent to LLM | `20` |
 | SelfTest:Phrase | Text spoken aloud during self-test (TTS broadcast) | `I never did mind about the little things` |
 | SelfTest:DurationSeconds | How long mic capture runs concurrently with broadcast | `10` |
+| PostTranscription:OfferReadback | Prompt to read transcribed text back after STT | `true` |
+| PostTranscription:ReadbackUsesTts | Use Piper TTS for readback (vs. raw recording only) | `true` |
+| PostTranscription:OfferRecordingPlayback | Also offer playing the captured WAV | `false` |
+| PostTranscription:OfferTranslation | Prompt for translation after STT | `true` |
+| Translation:DefaultTargetLanguage | Pre-selected language code if prompts are skipped | `null` (always ask) |
 
 Sensitive values must not be committed. Document required external installs in README.
 
@@ -513,6 +525,123 @@ STT verification is optional for `dotnet run -- --self-test` without Docker; bro
 1. `SelfTest:Phrase` in `appsettings.json` defaults to `I never did mind about the little things` when unset in code defaults.
 2. `.\utils\run-docker.ps1 -SelfTest` plays that phrase through speakers **while** the mic is recording.
 3. Terminal shows `Broadcast: I never did mind about the little things` (or configured override).
-4. `--mic-test` is no longer documented; `--self-test` is documented in README and `utils/README.md`.
+4. `--mic-test` is no longer documented; `--self-test` is documented in the root `README.md` and `docs/build.md`.
 5. Changing `SelfTest:Phrase` in config changes the spoken and displayed phrase without recompile (config reload on startup).
 6. No LM Studio dependency for self-test.
+
+## 20. Post-transcription readback (optional)
+
+### 20.1 Purpose
+
+After the user's speech has been transcribed and **`You said:`** is shown, offer an **optional** step to **read the words back** so the user can verify what the system understood before continuing to the LLM reply (or before translation; see section 21).
+
+### 20.2 When to offer
+
+1. Run only when transcription produced **non-empty** speech (not `(no speech detected)`).
+2. Run in the **main voice session** after each successful STT pass (before LM Studio chat for that turn).
+3. Skip the prompt when `PostTranscription:OfferReadback` is `false`.
+4. Self-test mode is unchanged unless explicitly extended later.
+
+### 20.3 Readback modes
+
+| Mode | Behavior | Default |
+|------|----------|---------|
+| **TTS readback** | Synthesize and play the **transcribed text** via Piper (same TTS path as assistant replies) | Primary when `ReadbackUsesTts` is `true` |
+| **Recording playback** | Play the captured WAV from the current turn | Optional when `OfferRecordingPlayback` is `true` |
+
+If both are enabled, use a **Spectre selection prompt**, e.g.:
+
+1. Continue (no readback)
+2. Hear transcript (TTS)
+3. Hear original recording (if `OfferRecordingPlayback`)
+
+If only TTS readback is enabled, a simple **Confirm** ("Read your words back?") is sufficient.
+
+### 20.4 UI and text echo
+
+1. Before audio starts, print **`Readback:`** followed by the transcribed text (reuses the same string as `You said:`).
+2. Readback audio must not remove or replace the `You said:` line in the session transcript.
+3. Readback is **not** added to LM Studio conversation history unless explicitly designed later (default: **excluded** from chat history).
+
+### 20.5 Errors
+
+1. If TTS fails during readback, show the error and offer to continue to the next step (LLM / translation).
+2. Readback failure must not abort the whole turn unless the user chooses to exit.
+
+### 20.6 Acceptance criteria
+
+1. After speaking in a voice session, user can opt in to hear the transcript spoken aloud.
+2. Declining readback proceeds immediately to the next step (translation prompt or LLM).
+3. `PostTranscription:OfferReadback` in `appsettings.json` disables the prompt when `false`.
+
+## 21. Optional translation (Spanish, Mandarin, German)
+
+### 21.1 Purpose
+
+After transcription (and after optional readback if the user used it), offer to **translate** the recognized text into one of three target languages using the **local LM Studio** model (no cloud translation API).
+
+### 21.2 Supported languages
+
+| UI label | Language | LM / prompt hint |
+|----------|----------|------------------|
+| Spanish | Spanish | `es` |
+| Mandarin | Mandarin Chinese (Simplified) | `zh` |
+| German | German | `de` |
+
+The user may also choose **Skip** / **None** to continue without translation.
+
+### 21.3 When to offer
+
+1. After `You said:` is displayed and after the optional readback step (section 20).
+2. Only when transcription has non-empty speech.
+3. Skip when `PostTranscription:OfferTranslation` is `false`.
+4. Requires LM Studio to be reachable (same as main chat). If LM Studio is down, skip with a short message or fail the turn according to existing LLM error handling.
+
+### 21.4 Interaction (Spectre.Console)
+
+1. Use **`SelectionPrompt`** (or equivalent) with choices: `Skip`, `Spanish`, `Mandarin`, `German`.
+2. On selection, call LM Studio with a **one-shot translation request** (not mixed into the main assistant persona thread unless product decision says otherwise).
+
+Recommended translation prompt pattern (implementation detail):
+
+- System: `You are a translator. Output only the translation, no commentary.`
+- User: `Translate the following text to {language}:\n\n{transcript}`
+
+3. Display result as **`Translation (Spanish):`** (or Mandarin / German) with the translated text in the session transcript panel.
+4. Translation output is **echoed as text** per section 18; optional TTS of the translation is out of scope unless added later.
+
+### 21.5 Chat history
+
+1. Default: translation is **informational for the current turn** — store in the session **transcript log** for display, but do **not** send the translation as the user message to the main LM Studio chat unless the user later requests that behavior.
+2. The **original** transcribed text remains what is sent to the assistant for the turn's LLM reply.
+
+### 21.6 Configuration
+
+| Key | Description |
+|-----|-------------|
+| `PostTranscription:OfferTranslation` | Show translation prompt after STT |
+| `Translation:DefaultTargetLanguage` | If set to `es`, `zh`, or `de`, skip language picker and always translate (optional power-user mode) |
+
+### 21.7 Turn flow (with new steps)
+
+```mermaid
+flowchart TD
+  Rec[Record speech] --> STT[Transcribe]
+  STT --> Echo[Show You said]
+  Echo --> RB{Offer readback?}
+  RB -->|Yes| Readback[TTS or WAV playback]
+  RB -->|No| TR
+  Readback --> TR{Offer translation?}
+  TR -->|Spanish/Mandarin/German| Trans[LM Studio translate]
+  TR -->|Skip| LLM[LM Studio chat reply]
+  Trans --> LLM
+  LLM --> TTS[Assistant TTS]
+```
+
+### 21.8 Acceptance criteria
+
+1. User can translate a transcribed utterance to Spanish, Mandarin, or German and see the result in the console.
+2. User can skip translation and proceed to the normal assistant reply.
+3. All three languages are available from the same selection UI.
+4. Translation uses LM Studio locally (no external translation SaaS).
+5. Empty / no-speech turns do not show the translation prompt.

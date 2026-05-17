@@ -194,3 +194,47 @@ Implementation follows `docs/spec.md`. Execute phases in order.
 - [ ] 8.1.1 - Voice activity detection (hands-free end of utterance)
 - [ ] 8.1.2 - Streaming STT/LLM/TTS
 - [ ] 8.1.3 - `run-docker.ps1` optional flags (`-SkipBuild`, etc.)
+
+---
+
+## Phase 8a: Post-transcription readback
+
+**Objective:** After STT, optionally read the transcribed text back via TTS (and optionally play the raw recording).
+
+**Dependencies:** Phase 7 complete (voice session + TTS exist).
+
+**Estimated effort:** Small (0.5 day).
+
+**Run for phase gate:** `.\utils\run-docker.ps1` with LM Studio running.
+
+**New distinct behavior:** After `You said:`, user can choose to hear the transcript spoken (`Readback:` line + Piper audio) before the assistant reply.
+
+- [ ] 8a.1.1 - Add `PostTranscription` settings to `data/appsettings.json` and bind options
+- [ ] 8a.1.2 - After successful STT in `VoiceSessionRunner`, Spectre prompt to read back (respect `OfferReadback`)
+- [ ] 8a.1.3 - Implement TTS readback of transcript via existing Piper path; print `Readback:` label
+- [ ] 8a.1.4 - Optional: recording playback when `OfferRecordingPlayback` is true (selection or second confirm)
+- [ ] 8a.1.5 - Ensure readback text is not sent as the user message to main LM Studio chat
+- [ ] 8a.1.6 - **Phase gate 8a:** Decline readback -> normal flow; accept -> hear transcript, then continue
+
+---
+
+## Phase 8b: Optional translation (Spanish, Mandarin, German)
+
+**Objective:** After STT (and optional readback), offer translation via LM Studio; display translated text in session log.
+
+**Dependencies:** Phase 8a recommended first (ordered UX); minimum Phase 7.
+
+**Estimated effort:** Small-Medium (0.5-1 day).
+
+**Run for phase gate:** `.\utils\run-docker.ps1` with LM Studio running.
+
+**New distinct behavior:** `SelectionPrompt` for Spanish / Mandarin / German; **`Translation (…):`** line in transcript; original text still used for assistant reply.
+
+- [ ] 8b.1.1 - Add `PostTranscription:OfferTranslation` and `Translation:DefaultTargetLanguage` to config
+- [ ] 8b.1.2 - `ITranslationService` (or LLM helper) with one-shot LM Studio translate prompt per language
+- [ ] 8b.1.3 - Spectre `SelectionPrompt`: Skip, Spanish, Mandarin, German
+- [ ] 8b.1.4 - Append `Translation (Spanish):` (etc.) to session transcript renderer
+- [ ] 8b.1.5 - Keep main chat payload using original `You said` text only
+- [ ] 8b.1.6 - Handle LM Studio unavailable during translation (skip or warn, do not crash session)
+- [ ] 8b.1.7 - Update README and spec section 21 when complete
+- [ ] 8b.1.8 - **Phase gate 8b:** Translate an English utterance to each language in turn (manual demo); skip path still reaches assistant reply
