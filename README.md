@@ -1,4 +1,6 @@
-﻿# ai-voice-test
+﻿# offline-ai-voice
+
+**Repository:** [github.com/pcmichaels/offline-ai-voice](https://github.com/pcmichaels/offline-ai-voice)
 
 ## Overview
 
