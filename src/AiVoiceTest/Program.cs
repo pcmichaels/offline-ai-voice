@@ -46,6 +46,8 @@ static async Task<int> RunAsync(string[] args)
             .ConfigureServices((context, services) =>
             {
                 services.AddAiVoiceTestInfrastructure(context.Configuration, repositoryRoot);
+                services.AddSingleton<PostTranscriptionReadbackRunner>();
+                services.AddSingleton<TranslationPromptRunner>();
             })
             .Build();
 
@@ -56,6 +58,8 @@ static async Task<int> RunAsync(string[] args)
         var audioOptions = host.Services.GetRequiredService<IOptions<AudioOptions>>().Value;
         var sessionOptions = host.Services.GetRequiredService<IOptions<SessionOptions>>().Value;
         var selfTestOptionsForValidation = host.Services.GetRequiredService<IOptions<SelfTestOptions>>().Value;
+        var postTranscriptionOptions = host.Services.GetRequiredService<IOptions<PostTranscriptionOptions>>().Value;
+        var translationOptions = host.Services.GetRequiredService<IOptions<TranslationOptions>>().Value;
 
         var configErrors = AppConfigurationValidator.Validate(
             llmOptions,
@@ -63,7 +67,9 @@ static async Task<int> RunAsync(string[] args)
             ttsOptions,
             audioOptions,
             sessionOptions,
-            selfTestOptionsForValidation);
+            selfTestOptionsForValidation,
+            postTranscriptionOptions,
+            translationOptions);
 
         if (configErrors.Count > 0)
         {
@@ -86,6 +92,8 @@ static async Task<int> RunAsync(string[] args)
             host.Services.GetRequiredService<IOptions<AudioOptions>>(),
             host.Services.GetRequiredService<IOptions<SessionOptions>>(),
             host.Services.GetRequiredService<IOptions<SelfTestOptions>>(),
+            host.Services.GetRequiredService<IOptions<PostTranscriptionOptions>>(),
+            host.Services.GetRequiredService<IOptions<TranslationOptions>>(),
             appSettingsPath);
 
         if (SelfTestArgs.IsSelfTest(args))
@@ -177,7 +185,11 @@ static async Task<int> RunAsync(string[] args)
             host.Services.GetRequiredService<IAudioCaptureService>(),
             host.Services.GetRequiredService<IVoiceSessionOrchestrator>(),
             host.Services.GetRequiredService<ITextToSpeechService>(),
-            host.Services.GetRequiredService<IAudioPlaybackService>());
+            host.Services.GetRequiredService<IAudioPlaybackService>(),
+            host.Services.GetRequiredService<IOptions<AudioOptions>>(),
+            host.Services.GetRequiredService<IOptions<LlmOptions>>(),
+            host.Services.GetRequiredService<PostTranscriptionReadbackRunner>(),
+            host.Services.GetRequiredService<TranslationPromptRunner>());
 
         await session.RunAsync();
     }

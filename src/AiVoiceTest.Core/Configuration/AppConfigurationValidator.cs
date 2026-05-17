@@ -1,3 +1,5 @@
+using AiVoiceTest.Core.Session;
+
 namespace AiVoiceTest.Core.Configuration;
 
 public static class AppConfigurationValidator
@@ -8,7 +10,9 @@ public static class AppConfigurationValidator
         TtsOptions tts,
         AudioOptions audio,
         SessionOptions session,
-        SelfTestOptions selfTest)
+        SelfTestOptions selfTest,
+        PostTranscriptionOptions postTranscription,
+        TranslationOptions translation)
     {
         var errors = new List<string>();
 
@@ -48,6 +52,32 @@ public static class AppConfigurationValidator
         if (selfTest.DurationSeconds is < 2 or > 60)
         {
             errors.Add("SelfTest:DurationSeconds must be between 2 and 60.");
+        }
+
+        if (audio.MaxRecordingSeconds < 5)
+        {
+            errors.Add("Audio:MaxRecordingSeconds must be at least 5.");
+        }
+
+        if (audio.SilenceDurationMs < 300)
+        {
+            errors.Add("Audio:SilenceDurationMs must be at least 300.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(translation.DefaultTargetLanguage)
+            && !TranslationLanguages.TryGetByCode(
+                translation.DefaultTargetLanguage,
+                out _))
+        {
+            errors.Add("Translation:DefaultTargetLanguage must be es, zh, or de when set.");
+        }
+
+        if (postTranscription.OfferReadback
+            && !postTranscription.ReadbackUsesTts
+            && !postTranscription.OfferRecordingPlayback)
+        {
+            errors.Add(
+                "PostTranscription: enable ReadbackUsesTts and/or OfferRecordingPlayback when OfferReadback is true.");
         }
 
         return errors;

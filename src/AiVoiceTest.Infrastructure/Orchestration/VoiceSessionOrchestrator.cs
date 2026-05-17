@@ -31,7 +31,10 @@ public sealed class VoiceSessionOrchestrator : IVoiceSessionOrchestrator
             };
         }
 
-        return await CompleteTurnFromUserTextAsync(transcription.UserDisplayText, cancellationToken);
+        return await CompleteTurnFromUserTextAsync(
+            transcription.UserDisplayText,
+            streamChunks: null,
+            cancellationToken);
     }
 
     public async Task<TranscriptionResult> TranscribeUtteranceAsync(
@@ -57,11 +60,15 @@ public sealed class VoiceSessionOrchestrator : IVoiceSessionOrchestrator
 
     public async Task<VoiceTurnResult> CompleteTurnFromUserTextAsync(
         string userDisplayText,
+        IProgress<string>? streamChunks = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var assistantReply = await _llmChat.SendUserMessageAsync(userDisplayText, cancellationToken);
+            var assistantReply = await _llmChat.SendUserMessageAsync(
+                userDisplayText,
+                streamChunks,
+                cancellationToken);
 
             return new VoiceTurnResult
             {

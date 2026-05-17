@@ -155,13 +155,12 @@ The .NET app must not embed Python; it invokes `utils/` scripts, container endpo
 
 ## 5. Project Layout
 
-Per `claude.md` / `AGENTS.md`:
+Per `AGENTS.md`:
 
 ```
 ai-voice-test/
   AGENTS.md
   README.md
-  claude.md
   utils/
     run-docker.ps1      # Primary run script (build Docker deps, launch client)
   data/                 # Configuration, optional persisted session (POC: config only)
@@ -276,7 +275,7 @@ Manual install of Python/Piper on the host is **not** required when using the Do
 2. **Integration tests** - Optional, gated: require LM Studio running; mark as explicit/skipped in CI.
 3. **Manual POC test** - Run `.\utils\run-docker.ps1` with LM Studio up; record short phrase, verify transcript, verify spoken reply, verify multi-turn context.
 
-Follow `claude.md` testing rules: AAA pattern, no test-only production code paths, one behavior per unit test.
+Follow `AGENTS.md` testing rules: AAA pattern, no test-only production code paths, one behavior per unit test.
 
 ## 12. Acceptance Criteria (POC complete)
 
@@ -315,7 +314,7 @@ Follow `claude.md` testing rules: AAA pattern, no test-only production code path
 
 1. `docs/todo.md` - Phased implementation checklist (derived from this spec).
 2. `README.md` - Setup, run instructions, and feature status.
-3. `claude.md` / `AGENTS.md` - Project rules and agent workflows.
+3. `AGENTS.md` - Project rules and agent workflows.
 4. `docs/build.md` - To be added: Docker build details, compose services, and troubleshooting.
 
 ## 16. Run orchestration: `run-docker.ps1`

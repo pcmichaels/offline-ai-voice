@@ -17,6 +17,8 @@ public static class ConfigurationExtensions
         services.Configure<AudioOptions>(configuration.GetSection(AudioOptions.SectionName));
         services.Configure<SessionOptions>(configuration.GetSection(SessionOptions.SectionName));
         services.Configure<SelfTestOptions>(configuration.GetSection(SelfTestOptions.SectionName));
+        services.Configure<PostTranscriptionOptions>(configuration.GetSection(PostTranscriptionOptions.SectionName));
+        services.Configure<TranslationOptions>(configuration.GetSection(TranslationOptions.SectionName));
 
         return services;
     }

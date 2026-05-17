@@ -19,6 +19,7 @@ public static class LlmServiceCollectionExtensions
         });
 
         services.AddSingleton<ILlmChatService, HttpLlmChatService>();
+        services.AddSingleton<ITranslationService, HttpTranslationService>();
 
         return services;
     }

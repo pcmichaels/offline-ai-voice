@@ -30,7 +30,11 @@ Optional:
 ```powershell
 .\utils\run-docker.ps1 -SkipBuild
 .\utils\run-docker.ps1 -Configuration Debug
+.\utils\run-docker.ps1 -DetachOnly          # start containers and exit (no dotnet client)
+.\utils\run-docker.ps1 -NonInteractive      # skip Spectre prompts where applicable
 ```
+
+The script restores your original working directory on exit.
 
 ## Docker services
 
@@ -94,6 +98,43 @@ Direct client (TTS container must already be healthy):
 ```powershell
 dotnet run --project src/AiVoiceTest -- --self-test
 ```
+
+## Phase 8 enhancements
+
+### Voice activity detection (VAD)
+
+In `data/appsettings.json` under `Audio`:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `UseVoiceActivityDetection` | `false` | When `true`, recording ends after sustained silence instead of push-to-talk release only |
+| `SilenceDurationMs` | `1200` | Milliseconds of silence below threshold to stop |
+| `SpeechThreshold` | `0.02` | Peak level (0–1) treated as speech |
+| `MaxRecordingSeconds` | `30` | Safety cap on recording length |
+
+### LLM streaming
+
+Set `Llm:StreamResponses` to `true` to print assistant tokens as they arrive from LM Studio (SSE). STT and TTS remain non-streaming.
+
+### Post-transcription readback (Phase 8a)
+
+`PostTranscription` in `data/appsettings.json`:
+
+| Setting | Description |
+|---------|-------------|
+| `OfferReadback` | Prompt to speak the transcript back via Piper after `You said:` |
+| `OfferRecordingPlayback` | Optionally play the raw WAV capture |
+
+Console label: **`Readback:`**. Readback text is not sent to the main chat.
+
+### Optional translation (Phase 8b)
+
+| Setting | Description |
+|---------|-------------|
+| `PostTranscription:OfferTranslation` | After readback, offer Spanish / Mandarin / German via `SelectionPrompt` |
+| `Translation:DefaultTargetLanguage` | Optional `es`, `zh`, or `de` to skip the language picker |
+
+Console label: **`Translation (Spanish):`** (etc.). The assistant reply still uses the original English transcript.
 
 ## Testing
 

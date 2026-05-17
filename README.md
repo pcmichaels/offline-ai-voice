@@ -29,12 +29,13 @@ See [docs/spec.md](docs/spec.md) for full requirements and architecture.
 - **Phase 6 — Multi-turn:** Session loop until `q`; rolling Spectre transcript panel with turn count; LM Studio payload capped via `Session:MaxHistoryMessages` (`ChatHistoryTrimmer` / `LlmConversationMessages`); separate **Transcribing** / **Thinking** status; follow-up questions retain prior context.
 - **Phase 5b — Self-test:** `-SelfTest` / `--self-test` broadcasts `SelfTest:Phrase` via Piper while the mic records concurrently; console shows **`Broadcast:`** and optional **`Heard:`** (when STT is up). See [spec section 19](docs/spec.md#19-self-test-mode-self-test-replaces-mic-test).
 - **Phase 7 — POC sign-off:** Automated unit tests; optional gated integration tests; configuration validation at startup; manual checklist in [docs/poc-checklist.md](docs/poc-checklist.md).
+- **Phase 8 — Enhancements:** Optional **voice activity detection** (`Audio:UseVoiceActivityDetection`) for hands-free end-of-utterance; **LLM streaming** to console when `Llm:StreamResponses` is true; `run-docker.ps1` flags `-SkipBuild`, `-DetachOnly`, `-NonInteractive`, `-SelfTest`.
+- **Phase 8a — Post-transcription readback:** After `You said:`, optional Spectre prompt to hear the transcript via TTS (`Readback:`) or play the raw recording when enabled in `PostTranscription` settings ([spec §20](docs/spec.md#20-post-transcription-readback-optional)).
+- **Phase 8b — Optional translation:** After readback (if any), offer Spanish, Mandarin, or German via LM Studio; session log shows `Translation (...):` while the assistant still uses the original English utterance ([spec §21](docs/spec.md#21-optional-translation-spanish-mandarin-german)).
 
 ## Not Yet Implemented
 
-- **Post-transcription readback** — after `You said:`, optionally hear the transcript spoken back (TTS) or play the recording ([spec §20](docs/spec.md#20-post-transcription-readback-optional))
-- **Optional translation** — offer Spanish, Mandarin, or German via LM Studio; show `Translation (...):` in the log ([spec §21](docs/spec.md#21-optional-translation-spanish-mandarin-german))
-- Other Phase 8 enhancements (VAD, streaming, script flags) — see [docs/todo.md](docs/todo.md)
+- **STT/TTS streaming** — LLM token streaming is supported; incremental STT/TTS over HTTP remains future work.
 
 ## Planned incremental milestones
 
@@ -48,8 +49,9 @@ See [docs/spec.md](docs/spec.md) for full requirements and architecture.
 | 5b | **Self-test**: broadcast configured phrase while mic listens (`-SelfTest`) — **implemented** |
 | 6 | Multi-turn conversation in session log — **implemented** |
 | 7 | Tests + POC sign-off — **implemented** |
-| 8a | Optional **readback** of transcribed text (TTS) |
-| 8b | Optional **translation** (Spanish / Mandarin / German) |
+| 8 | VAD, LLM streaming, script flags — **implemented** |
+| 8a | Optional **readback** of transcribed text (TTS) — **implemented** |
+| 8b | Optional **translation** (Spanish / Mandarin / German) — **implemented** |
 
 Details: [docs/todo.md](docs/todo.md), [docs/spec.md](docs/spec.md) sections 17-18.
 

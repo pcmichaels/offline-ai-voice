@@ -42,6 +42,17 @@ public static class SessionTranscriptRenderer
             return $"[green]{AssistantTranscriptLabels.Prefix}[/] {Markup.Escape(text)}";
         }
 
+        if (line.StartsWith(TranslationLabels.Prefix, StringComparison.Ordinal))
+        {
+            return $"[magenta]{Markup.Escape(line)}[/]";
+        }
+
+        if (line.StartsWith(ReadbackLabels.Prefix, StringComparison.Ordinal))
+        {
+            var text = line[ReadbackLabels.Prefix.Length..].TrimStart();
+            return $"[yellow]{ReadbackLabels.Prefix}[/] [bold]{Markup.Escape(text)}[/]";
+        }
+
         return Markup.Escape(line);
     }
 }

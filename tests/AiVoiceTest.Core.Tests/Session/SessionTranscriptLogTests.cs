@@ -29,4 +29,27 @@ public sealed class SessionTranscriptLogTests
         Assert.Equal(0, log.CompletedTurns);
         Assert.True(log.HasEntries);
     }
+
+    [Fact]
+    public void AddReadback_AppendsReadbackLineWithoutCompletingTurn()
+    {
+        var log = new SessionTranscriptLog();
+        log.AddUserUtterance("hello");
+        log.AddReadback("hello");
+
+        Assert.Equal(2, log.Lines.Count);
+        Assert.StartsWith(ReadbackLabels.Prefix, log.Lines[1], StringComparison.Ordinal);
+        Assert.Equal(0, log.CompletedTurns);
+    }
+
+    [Fact]
+    public void AddTranslation_AppendsTranslationLine()
+    {
+        var log = new SessionTranscriptLog();
+        log.AddTranslation("Spanish", "Hola");
+
+        Assert.Single(log.Lines);
+        Assert.Contains("Spanish", log.Lines[0], StringComparison.Ordinal);
+        Assert.Equal(0, log.CompletedTurns);
+    }
 }

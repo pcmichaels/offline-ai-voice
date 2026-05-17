@@ -13,5 +13,6 @@ public interface IVoiceSessionOrchestrator
 
     Task<VoiceTurnResult> CompleteTurnFromUserTextAsync(
         string userDisplayText,
+        IProgress<string>? streamChunks = null,
         CancellationToken cancellationToken = default);
 }

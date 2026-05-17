@@ -1,6 +1,10 @@
+using System.Text;
+using AiVoiceTest.Core.Configuration;
+using AiVoiceTest.Core.Models;
 using AiVoiceTest.Core.Services;
 using AiVoiceTest.Core.Session;
 using AiVoiceTest.UI;
+using Microsoft.Extensions.Options;
 using Spectre.Console;
 
 namespace AiVoiceTest.Session;
@@ -11,28 +15,55 @@ public sealed class VoiceSessionRunner
     private readonly IVoiceSessionOrchestrator _orchestrator;
     private readonly ITextToSpeechService _textToSpeech;
     private readonly IAudioPlaybackService _audioPlayback;
+    private readonly AudioOptions _audioOptions;
+    private readonly LlmOptions _llmOptions;
+    private readonly PostTranscriptionReadbackRunner _readbackRunner;
+    private readonly TranslationPromptRunner _translationRunner;
     private readonly SessionTranscriptLog _transcriptLog = new();
 
     public VoiceSessionRunner(
         IAudioCaptureService audioCapture,
         IVoiceSessionOrchestrator orchestrator,
         ITextToSpeechService textToSpeech,
-        IAudioPlaybackService audioPlayback)
+        IAudioPlaybackService audioPlayback,
+        IOptions<AudioOptions> audioOptions,
+        IOptions<LlmOptions> llmOptions,
+        PostTranscriptionReadbackRunner readbackRunner,
+        TranslationPromptRunner translationRunner)
     {
         _audioCapture = audioCapture;
         _orchestrator = orchestrator;
         _textToSpeech = textToSpeech;
         _audioPlayback = audioPlayback;
+        _audioOptions = audioOptions.Value;
+        _llmOptions = llmOptions.Value;
+        _readbackRunner = readbackRunner;
+        _translationRunner = translationRunner;
     }
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[bold]Multi-turn voice session[/] (push-to-talk):");
-        AnsiConsole.MarkupLine("  1. At [yellow]Ready[/], press [yellow]Enter[/] to start recording.");
-        AnsiConsole.MarkupLine("  2. [bold]Speak[/], then press [yellow]Enter[/] again to stop.");
-        AnsiConsole.MarkupLine("  3. Repeat for follow-up questions — prior [cyan]You said[/] / [green]Assistant[/] lines stay in the log.");
+        AnsiConsole.MarkupLine("[bold]Multi-turn voice session[/]:");
+        if (_audioOptions.UseVoiceActivityDetection)
+        {
+            AnsiConsole.MarkupLine(
+                "  1. At [yellow]Ready[/], press [yellow]Enter[/] to record — stops after silence (VAD) or press [yellow]Enter[/] again.");
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("  1. At [yellow]Ready[/], press [yellow]Enter[/] to start recording.");
+            AnsiConsole.MarkupLine("  2. [bold]Speak[/], then press [yellow]Enter[/] again to stop.");
+        }
+
+        AnsiConsole.MarkupLine("  2. Optional [dim]readback[/] and [dim]translation[/] after each transcript (see config).");
+        AnsiConsole.MarkupLine("  3. Repeat for follow-up questions — prior lines stay in the log.");
         AnsiConsole.MarkupLine("  4. Type [yellow]q[/] + Enter at Ready to exit.");
+        if (_llmOptions.StreamResponses)
+        {
+            AnsiConsole.MarkupLine("  [dim]LM streaming enabled — assistant text appears as it is generated.[/]");
+        }
+
         AnsiConsole.WriteLine();
 
         while (!cancellationToken.IsCancellationRequested)
@@ -67,12 +98,38 @@ public sealed class VoiceSessionRunner
                     continue;
                 }
 
-                var turn = await AnsiConsole.Status()
-                    .Spinner(Spinner.Known.Dots)
-                    .StartAsync("Thinking...", async _ =>
-                        await _orchestrator.CompleteTurnFromUserTextAsync(
-                            transcription.UserDisplayText,
-                            cancellationToken));
+                var readbackPerformed = await _readbackRunner.RunAsync(
+                    transcription.UserDisplayText,
+                    recordedPath,
+                    _transcriptLog,
+                    cancellationToken);
+
+                if (readbackPerformed)
+                {
+                    AnsiConsole.WriteLine();
+                    SessionTranscriptRenderer.Render(_transcriptLog);
+                }
+
+                await _translationRunner.RunAsync(
+                    transcription.UserDisplayText,
+                    _transcriptLog,
+                    cancellationToken);
+
+                VoiceTurnResult turn;
+                if (_llmOptions.StreamResponses)
+                {
+                    turn = await RunStreamingAssistantTurnAsync(transcription.UserDisplayText, cancellationToken);
+                }
+                else
+                {
+                    turn = await AnsiConsole.Status()
+                        .Spinner(Spinner.Known.Dots)
+                        .StartAsync("Thinking...", async _ =>
+                            await _orchestrator.CompleteTurnFromUserTextAsync(
+                                transcription.UserDisplayText,
+                                streamChunks: null,
+                                cancellationToken));
+                }
 
                 if (!string.IsNullOrWhiteSpace(turn.LlmError))
                 {
@@ -130,14 +187,51 @@ public sealed class VoiceSessionRunner
         }
     }
 
+    private async Task<VoiceTurnResult> RunStreamingAssistantTurnAsync(
+        string userDisplayText,
+        CancellationToken cancellationToken)
+    {
+        AnsiConsole.WriteLine();
+        AnsiConsole.Markup("[green]Assistant:[/] ");
+
+        var buffer = new StringBuilder();
+        var progress = new Progress<string>(chunk =>
+        {
+            buffer.Append(chunk);
+            AnsiConsole.Markup(Markup.Escape(chunk));
+        });
+
+        var turn = await _orchestrator.CompleteTurnFromUserTextAsync(
+            userDisplayText,
+            progress,
+            cancellationToken);
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.WriteLine();
+        return turn;
+    }
+
     private async Task<string> RecordUtteranceAsync(CancellationToken cancellationToken)
     {
         var stopRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var recordTask = _audioCapture.RecordToWavFileAsync(stopRequested.Task, cancellationToken);
 
-        AnsiConsole.MarkupLine("[yellow]Recording — speak now.[/] Press [bold]Enter[/] when finished.");
-        await Task.Run(Console.ReadLine, cancellationToken);
-        stopRequested.TrySetResult();
+        if (_audioOptions.UseVoiceActivityDetection)
+        {
+            AnsiConsole.MarkupLine(
+                "[yellow]Recording — speak now.[/] Stops after silence or press [bold]Enter[/].");
+            _ = Task.Run(() =>
+            {
+                Console.ReadLine();
+                stopRequested.TrySetResult();
+            }, cancellationToken);
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("[yellow]Recording — speak now.[/] Press [bold]Enter[/] when finished.");
+            await Task.Run(Console.ReadLine, cancellationToken);
+            stopRequested.TrySetResult();
+        }
 
         var path = await AnsiConsole.Status()
             .Spinner(Spinner.Known.Star)

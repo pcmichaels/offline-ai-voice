@@ -20,6 +20,8 @@ Use this checklist before POC sign-off. Automated unit tests: `dotnet test src/A
 | 5b | `.\utils\run-docker.ps1 -SelfTest` | `Broadcast:` line; configured phrase plays while mic records |
 | 6 | Same as Phase 5 | Two turns; second answer uses context from first |
 | 7 | `dotnet test src/AiVoiceTest.sln --filter "Category!=Integration"` | All unit tests pass |
+| 8a | `.\utils\run-docker.ps1` | After `You said:`, accept readback; hear `Readback:` via TTS; assistant still replies |
+| 8b | `.\utils\run-docker.ps1` | Choose Spanish/Mandarin/German; see `Translation (...):`; skip still reaches `Assistant:` using original English |
 
 ## Speech echo (spec 18.5)
 

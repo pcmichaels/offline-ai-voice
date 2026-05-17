@@ -31,16 +31,24 @@ public sealed class NaudioAudioCaptureService : IAudioCaptureService
         var device = SelectCaptureDevice();
         CaptureDeviceName = device.FriendlyName;
         using var capture = new WasapiCapture(device);
+        VoiceActivityMonitor? vadMonitor = _options.UseVoiceActivityDetection
+            ? new VoiceActivityMonitor(
+                _options.SpeechThreshold,
+                _options.SilenceDurationMs,
+                _options.MaxRecordingSeconds)
+            : null;
 
         await using (var writer = new WaveFileWriter(rawPath, capture.WaveFormat))
         {
             var recordingStopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var waveFormat = capture.WaveFormat;
 
             capture.DataAvailable += (_, args) =>
             {
                 if (args.BytesRecorded > 0)
                 {
                     writer.Write(args.Buffer, 0, args.BytesRecorded);
+                    vadMonitor?.ProcessPeak(ComputePeak(args.Buffer, args.BytesRecorded, waveFormat));
                 }
             };
 
@@ -50,7 +58,13 @@ public sealed class NaudioAudioCaptureService : IAudioCaptureService
 
             try
             {
-                await WaitForStopAsync(stopRequested, cancellationToken);
+                var stopTasks = new List<Task> { stopRequested };
+                if (vadMonitor is not null)
+                {
+                    stopTasks.Add(vadMonitor.StopTask);
+                }
+
+                await WaitForStopAsync(stopTasks, cancellationToken);
             }
             finally
             {
@@ -91,15 +105,55 @@ public sealed class NaudioAudioCaptureService : IAudioCaptureService
         return enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console);
     }
 
-    private static async Task WaitForStopAsync(Task stopRequested, CancellationToken cancellationToken)
+    private static async Task WaitForStopAsync(IReadOnlyList<Task> stopTasks, CancellationToken cancellationToken)
     {
         var cancelTask = Task.Delay(Timeout.Infinite, cancellationToken);
-        var completed = await Task.WhenAny(stopRequested, cancelTask);
+        var waitSet = stopTasks.Append(cancelTask).ToArray();
+        var completed = await Task.WhenAny(waitSet);
 
         if (completed == cancelTask)
         {
             cancellationToken.ThrowIfCancellationRequested();
         }
+    }
+
+    private static float ComputePeak(byte[] buffer, int bytesRecorded, WaveFormat format)
+    {
+        if (bytesRecorded <= 0)
+        {
+            return 0f;
+        }
+
+        float peak = 0f;
+        if (format.Encoding == WaveFormatEncoding.IeeeFloat)
+        {
+            var sampleCount = bytesRecorded / 4;
+            for (var i = 0; i < sampleCount; i++)
+            {
+                var sample = Math.Abs(BitConverter.ToSingle(buffer, i * 4));
+                if (sample > peak)
+                {
+                    peak = sample;
+                }
+            }
+
+            return peak;
+        }
+
+        if (format.BitsPerSample == 16)
+        {
+            var sampleCount = bytesRecorded / 2;
+            for (var i = 0; i < sampleCount; i++)
+            {
+                var sample = Math.Abs(BitConverter.ToInt16(buffer, i * 2) / 32768f);
+                if (sample > peak)
+                {
+                    peak = sample;
+                }
+            }
+        }
+
+        return peak;
     }
 
     private void ConvertTo16KhzMono(string inputPath, string outputPath)

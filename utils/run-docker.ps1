@@ -60,6 +60,8 @@ param(
 
     [switch] $SkipBuild,
 
+    [switch] $DetachOnly,
+
     [switch] $NonInteractive,
 
     [switch] $SelfTest,
@@ -462,6 +464,8 @@ function Wait-ServiceHealth {
 
 
 
+$previousLocation = Get-Location
+
 try {
 
     Set-Location $repoRoot
@@ -602,15 +606,17 @@ try {
 
     Wait-ServiceHealth -Name "TTS" -Url $ttsHealthUrl
 
-
+    if ($DetachOnly) {
+        Write-Host "STT/TTS containers are up. Start the client manually when ready:" -ForegroundColor Green
+        Write-Host "  dotnet run --project $projectPath" -ForegroundColor Green
+        exit 0
+    }
 
     Write-Step "Build .NET client ($Configuration)"
 
     dotnet build $solutionPath -c $Configuration
 
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-
 
     Write-Step "Preflight: LM Studio"
 
@@ -659,6 +665,11 @@ catch {
     Write-Host $_.Exception.Message -ForegroundColor Red
 
     exit 1
+
+}
+finally {
+
+    Set-Location $previousLocation
 
 }
 

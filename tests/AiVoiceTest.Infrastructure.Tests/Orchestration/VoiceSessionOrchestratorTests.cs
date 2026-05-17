@@ -87,7 +87,10 @@ public sealed class VoiceSessionOrchestratorTests
         public Task<ServiceHealthReport> CheckConnectivityAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new ServiceHealthReport("LM Studio", "http://localhost", true, "healthy", null));
 
-        public Task<string> SendUserMessageAsync(string userText, CancellationToken cancellationToken = default)
+        public Task<string> SendUserMessageAsync(
+            string userText,
+            IProgress<string>? streamChunks = null,
+            CancellationToken cancellationToken = default)
         {
             Calls.Add(userText);
             if (_shouldThrow)

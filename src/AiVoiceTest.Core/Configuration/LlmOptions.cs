@@ -13,4 +13,6 @@ public sealed class LlmOptions
     public double Temperature { get; set; } = 0.7;
 
     public int MaxTokens { get; set; } = 512;
+
+    public bool StreamResponses { get; set; }
 }

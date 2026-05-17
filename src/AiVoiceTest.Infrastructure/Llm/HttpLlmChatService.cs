@@ -1,4 +1,6 @@
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using AiVoiceTest.Core.Chat;
 using AiVoiceTest.Core.Configuration;
@@ -64,6 +66,7 @@ public sealed class HttpLlmChatService : ILlmChatService
 
     public async Task<string> SendUserMessageAsync(
         string userText,
+        IProgress<string>? streamChunks = null,
         CancellationToken cancellationToken = default)
     {
         _history.Add(new ChatMessage(ChatRoles.User, userText));
@@ -75,6 +78,7 @@ public sealed class HttpLlmChatService : ILlmChatService
             Messages = BuildMessagesPayload(),
             Temperature = _llmOptions.Temperature,
             MaxTokens = _llmOptions.MaxTokens,
+            Stream = _llmOptions.StreamResponses && streamChunks is not null,
         };
 
         var endpoint = CombineUrl(_llmOptions.BaseUrl, "/v1/chat/completions");
@@ -82,11 +86,9 @@ public sealed class HttpLlmChatService : ILlmChatService
 
         try
         {
-            using var response = await client.PostAsJsonAsync(endpoint, request, cancellationToken);
-            response.EnsureSuccessStatusCode();
-
-            var payload = await response.Content.ReadFromJsonAsync<ChatCompletionResponse>(cancellationToken);
-            var assistantText = payload?.Choices?.FirstOrDefault()?.Message?.Content?.Trim();
+            var assistantText = request.Stream
+                ? await SendStreamingAsync(endpoint, request, client, streamChunks!, cancellationToken)
+                : await SendBufferedAsync(endpoint, request, client, cancellationToken);
 
             if (string.IsNullOrWhiteSpace(assistantText))
             {
@@ -103,6 +105,95 @@ public sealed class HttpLlmChatService : ILlmChatService
             RemoveTrailingUserMessage(userText);
             throw;
         }
+    }
+
+    private static async Task<string> SendBufferedAsync(
+        string endpoint,
+        ChatCompletionRequest request,
+        HttpClient client,
+        CancellationToken cancellationToken)
+    {
+        using var response = await client.PostAsJsonAsync(endpoint, request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var payload = await response.Content.ReadFromJsonAsync<ChatCompletionResponse>(cancellationToken);
+        return payload?.Choices?.FirstOrDefault()?.Message?.Content?.Trim() ?? string.Empty;
+    }
+
+    private static async Task<string> SendStreamingAsync(
+        string endpoint,
+        ChatCompletionRequest request,
+        HttpClient client,
+        IProgress<string> streamChunks,
+        CancellationToken cancellationToken)
+    {
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        {
+            Content = JsonContent.Create(request),
+        };
+
+        using var response = await client.SendAsync(
+            httpRequest,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var reader = new StreamReader(stream);
+
+        var builder = new StringBuilder();
+        while (!reader.EndOfStream)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var line = await reader.ReadLineAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(line) || !line.StartsWith("data:", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var data = line["data:".Length..].Trim();
+            if (data == "[DONE]")
+            {
+                break;
+            }
+
+            var chunk = ParseStreamDeltaContent(data);
+            if (string.IsNullOrEmpty(chunk))
+            {
+                continue;
+            }
+
+            builder.Append(chunk);
+            streamChunks.Report(chunk);
+        }
+
+        return builder.ToString().Trim();
+    }
+
+    private static string? ParseStreamDeltaContent(string jsonData)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(jsonData);
+            if (!doc.RootElement.TryGetProperty("choices", out var choices)
+                || choices.GetArrayLength() == 0)
+            {
+                return null;
+            }
+
+            var delta = choices[0].GetProperty("delta");
+            if (delta.TryGetProperty("content", out var content)
+                && content.ValueKind == JsonValueKind.String)
+            {
+                return content.GetString();
+            }
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        return null;
     }
 
     private List<ChatMessageDto> BuildMessagesPayload()
@@ -157,6 +248,9 @@ public sealed class HttpLlmChatService : ILlmChatService
 
         [JsonPropertyName("max_tokens")]
         public int MaxTokens { get; set; }
+
+        [JsonPropertyName("stream")]
+        public bool Stream { get; set; }
     }
 
     private sealed class ChatMessageDto

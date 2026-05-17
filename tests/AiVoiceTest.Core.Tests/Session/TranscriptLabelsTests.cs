@@ -45,4 +45,22 @@ public sealed class TranscriptLabelsTests
 
         Assert.StartsWith(SelfTestLabels.HeardPrefix, line, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void ReadbackFormatLine_IncludesReadbackPrefix()
+    {
+        var line = ReadbackLabels.FormatLine("verify this");
+
+        Assert.StartsWith(ReadbackLabels.Prefix, line, StringComparison.Ordinal);
+        Assert.Contains("verify this", line, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TranslationFormatLine_IncludesLanguageAndText()
+    {
+        var line = TranslationLabels.FormatLine("Spanish", "Hola");
+
+        Assert.Contains("Spanish", line, StringComparison.Ordinal);
+        Assert.Contains("Hola", line, StringComparison.Ordinal);
+    }
 }

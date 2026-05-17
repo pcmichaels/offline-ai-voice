@@ -19,5 +19,15 @@ public sealed class SessionTranscriptLog
         CompletedTurns++;
     }
 
+    public void AddTranslation(string languageDisplayName, string translatedText)
+    {
+        _lines.Add(TranslationLabels.FormatLine(languageDisplayName, translatedText));
+    }
+
+    public void AddReadback(string transcriptText)
+    {
+        _lines.Add(ReadbackLabels.FormatLine(transcriptText));
+    }
+
     public bool HasEntries => _lines.Count > 0;
 }

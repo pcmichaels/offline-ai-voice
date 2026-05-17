@@ -18,7 +18,9 @@ public sealed class AppConfigurationValidatorTests
             new TtsOptions { ServiceUrl = "http://localhost:5002" },
             new AudioOptions { SampleRate = 16000 },
             new SessionOptions { MaxHistoryMessages = 20 },
-            ValidSelfTest());
+            ValidSelfTest(),
+            ValidPostTranscription(),
+            ValidTranslation());
 
         Assert.Empty(errors);
     }
@@ -32,7 +34,9 @@ public sealed class AppConfigurationValidatorTests
             ValidTts(),
             ValidAudio(),
             ValidSession(),
-            ValidSelfTest());
+            ValidSelfTest(),
+            ValidPostTranscription(),
+            ValidTranslation());
 
         Assert.Contains(errors, e => e.Contains("Llm:BaseUrl", StringComparison.Ordinal));
     }
@@ -46,7 +50,9 @@ public sealed class AppConfigurationValidatorTests
             ValidTts(),
             ValidAudio(),
             ValidSession(),
-            ValidSelfTest());
+            ValidSelfTest(),
+            ValidPostTranscription(),
+            ValidTranslation());
 
         Assert.Contains(errors, e => e.Contains("Stt:ServiceUrl", StringComparison.Ordinal));
     }
@@ -60,7 +66,9 @@ public sealed class AppConfigurationValidatorTests
             ValidTts(),
             new AudioOptions { SampleRate = 0 },
             ValidSession(),
-            ValidSelfTest());
+            ValidSelfTest(),
+            ValidPostTranscription(),
+            ValidTranslation());
 
         Assert.Contains(errors, e => e.Contains("Audio:SampleRate", StringComparison.Ordinal));
     }
@@ -74,9 +82,48 @@ public sealed class AppConfigurationValidatorTests
             ValidTts(),
             ValidAudio(),
             ValidSession(),
-            new SelfTestOptions { Phrase = "test", DurationSeconds = 1 });
+            new SelfTestOptions { Phrase = "test", DurationSeconds = 1 },
+            ValidPostTranscription(),
+            ValidTranslation());
 
         Assert.Contains(errors, e => e.Contains("SelfTest:DurationSeconds", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_WhenReadbackOfferedWithoutMode_ReturnsError()
+    {
+        var errors = AppConfigurationValidator.Validate(
+            ValidLlm(),
+            ValidStt(),
+            ValidTts(),
+            ValidAudio(),
+            ValidSession(),
+            ValidSelfTest(),
+            new PostTranscriptionOptions
+            {
+                OfferReadback = true,
+                ReadbackUsesTts = false,
+                OfferRecordingPlayback = false,
+            },
+            ValidTranslation());
+
+        Assert.Contains(errors, e => e.Contains("PostTranscription", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_WhenTranslationDefaultInvalid_ReturnsError()
+    {
+        var errors = AppConfigurationValidator.Validate(
+            ValidLlm(),
+            ValidStt(),
+            ValidTts(),
+            ValidAudio(),
+            ValidSession(),
+            ValidSelfTest(),
+            ValidPostTranscription(),
+            new TranslationOptions { DefaultTargetLanguage = "fr" });
+
+        Assert.Contains(errors, e => e.Contains("Translation:DefaultTargetLanguage", StringComparison.Ordinal));
     }
 
     private static LlmOptions ValidLlm() =>
@@ -100,4 +147,8 @@ public sealed class AppConfigurationValidatorTests
             Phrase = SelfTestOptions.DefaultPhrase,
             DurationSeconds = 10,
         };
+
+    private static PostTranscriptionOptions ValidPostTranscription() => new();
+
+    private static TranslationOptions ValidTranslation() => new();
 }
