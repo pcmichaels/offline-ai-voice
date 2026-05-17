@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AiVoiceTest.Core</RootNamespace>
+    <AssemblyName>AiVoiceTest.Core</AssemblyName>
+  </PropertyGroup>
+
+</Project>

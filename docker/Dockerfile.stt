@@ -1,0 +1,29 @@
+# Pinned base image (Faster Whisper STT service)
+FROM python:3.11.11-slim-bookworm
+
+ARG WHISPER_MODEL=small
+ARG WHISPER_DEVICE=cpu
+ARG WHISPER_COMPUTE_TYPE=int8
+
+ENV WHISPER_MODEL=${WHISPER_MODEL} \
+    WHISPER_DEVICE=${WHISPER_DEVICE} \
+    WHISPER_COMPUTE_TYPE=${WHISPER_COMPUTE_TYPE} \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY stt/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Pre-download model at build time (documented in docs/build.md)
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('${WHISPER_MODEL}', device='${WHISPER_DEVICE}', compute_type='${WHISPER_COMPUTE_TYPE}')"
+
+COPY stt/app.py .
+
+EXPOSE 8080
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]

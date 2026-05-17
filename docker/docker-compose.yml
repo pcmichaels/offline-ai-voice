@@ -1,0 +1,47 @@
+name: aivoicetest
+
+services:
+  stt:
+    build:
+      context: .
+      dockerfile: Dockerfile.stt
+      args:
+        WHISPER_MODEL: small
+        WHISPER_DEVICE: cpu
+        WHISPER_COMPUTE_TYPE: int8
+    ports:
+      - "5001:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+  tts:
+    build:
+      context: .
+      dockerfile: Dockerfile.tts
+      args:
+        PIPER_RELEASE: "2023.11.14-2"
+        PIPER_VOICE: en_US-lessac-medium
+    ports:
+      - "5002:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s

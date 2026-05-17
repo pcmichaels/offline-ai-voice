@@ -1,0 +1,39 @@
+# Pinned base image (Piper TTS service)
+FROM python:3.11.11-slim-bookworm
+
+ARG PIPER_RELEASE=2023.11.14-2
+ARG PIPER_VOICE=en_US-lessac-medium
+
+ENV PIPER_BINARY=/opt/piper/piper/piper \
+    PIPER_VOICE_MODEL=/voices/${PIPER_VOICE}.onnx \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Piper release binary (linux/amd64)
+RUN curl -fsSL "https://github.com/rhasspy/piper/releases/download/${PIPER_RELEASE}/piper_linux_x86_64.tar.gz" \
+    -o /tmp/piper.tar.gz \
+    && mkdir -p /opt/piper \
+    && tar -xzf /tmp/piper.tar.gz -C /opt/piper \
+    && chmod +x /opt/piper/piper/piper \
+    && rm /tmp/piper.tar.gz
+
+# Voice model (ONNX + config) — rhasspy/piper-voices
+RUN mkdir -p /voices \
+    && curl -fsSL "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/${PIPER_VOICE}.onnx" \
+        -o "/voices/${PIPER_VOICE}.onnx" \
+    && curl -fsSL "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/${PIPER_VOICE}.onnx.json" \
+        -o "/voices/${PIPER_VOICE}.onnx.json"
+
+COPY tts/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY tts/app.py .
+
+EXPOSE 8080
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
