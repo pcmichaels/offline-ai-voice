@@ -47,7 +47,7 @@ Future phases may add VAD-based hands-free mode, streaming, and a graphical UI; 
 
 | Layer | Technology | Role |
 |-------|------------|------|
-| Host application | .NET 8+ console app | Orchestration, configuration, session loop |
+| Host application | .NET 9 console app | Orchestration, configuration, session loop |
 | Terminal UI | Spectre.Console | Panels, prompts, status spinners, formatted output |
 | LLM | LM Studio | Local model inference; OpenAI-compatible HTTP API (host, not in Docker script) |
 | Speech-to-text | Faster Whisper | Offline transcription of recorded utterances |
@@ -107,7 +107,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-  Script[run-docker.ps1]
+  Script[utils/run-docker.ps1]
   Script --> Build[docker compose build]
   Build --> Up[docker compose up -d]
   Up --> STTsvc[STT container]
@@ -158,19 +158,22 @@ The .NET app must not embed Python; it invokes `utils/` scripts, container endpo
 Per `AGENTS.md`:
 
 ```
-ai-voice-test/
+offline-ai-voice/           # repository root (local clone may use another folder name)
   AGENTS.md
-  README.md
-  utils/
-    run-docker.ps1      # Primary run script (build Docker deps, launch client)
-  data/                 # Configuration, optional persisted session (POC: config only)
+  README.md                 # sole project README (per AGENTS.md)
+  docker-run.ps1            # thin wrapper -> utils/run-docker.ps1
+  docker/                   # Compose file and Dockerfiles (STT, TTS)
+  data/                     # Configuration; data/temp/ gitignored
   docs/
-    spec.md             # This document
-    todo.md             # Phased implementation tasks
-  src/                  # .NET solution and main application project
-  tests/                # Unit and integration tests
-  utils/                # Whisper/Piper helper scripts, setup notes
-  agents/               # Local only, gitignored
+    spec.md
+    todo.md
+    build.md
+    poc-checklist.md
+  src/                      # .NET solution (AiVoiceTest.sln)
+  tests/                    # Unit and integration tests
+  utils/
+    run-docker.ps1          # Primary run script (build Docker deps, launch client)
+  agents/                   # Local only, gitignored
 ```
 
 Docker assets (exact paths finalized in implementation):
@@ -251,7 +254,7 @@ Sensitive values must not be committed. Document required external installs in R
 
 ## 9. Prerequisites (developer machine)
 
-1. **.NET SDK** 8.0 or later.
+1. **.NET SDK** 9.0+ (solution targets `net9.0`).
 2. **Docker Desktop** (or compatible Docker engine) on Windows.
 3. **PowerShell** 5.1+ or PowerShell 7+ (to execute `utils/run-docker.ps1`).
 4. **LM Studio** installed; a chat/instruct model loaded; **local server started manually** before or during client run.
@@ -315,19 +318,19 @@ Follow `AGENTS.md` testing rules: AAA pattern, no test-only production code path
 1. `docs/todo.md` - Phased implementation checklist (derived from this spec).
 2. `README.md` - Setup, run instructions, and feature status.
 3. `AGENTS.md` - Project rules and agent workflows.
-4. `docs/build.md` - To be added: Docker build details, compose services, and troubleshooting.
+4. `docs/build.md` - Docker build, HTTP API contract, run options, troubleshooting.
 
-## 16. Run orchestration: `run-docker.ps1`
+## 16. Run orchestration: `utils/run-docker.ps1`
 
 ### 16.1 Purpose
 
-Provide a single PowerShell script at the repository root so developers can **build, provision, and run** the POC without manually installing Python, Piper, or Faster Whisper on the host. The LLM (LM Studio) remains outside this automation.
+Provide a single PowerShell script under `utils/` so developers can **build, provision, and run** the POC without manually installing Python, Piper, or Faster Whisper on the host. The LLM (LM Studio) remains outside this automation. Invoke from the repo root via `.\utils\run-docker.ps1` or the root wrapper `.\docker-run.ps1`.
 
 ### 16.2 Location and invocation
 
-- **Path:** `utils/run-docker.ps1`.
+- **Path:** `utils/run-docker.ps1` (canonical); `docker-run.ps1` at repo root delegates to it.
 - **Invocation:** `.\utils\run-docker.ps1` from the repo root in PowerShell (or `.\run-docker.ps1` from `utils/`).
-- Optional parameters (implementation): `-SkipBuild`, `-DetachOnly`, `-Configuration Release` - document in README when implemented.
+- **Implemented optional parameters:** `-SkipBuild`, `-DetachOnly`, `-NonInteractive`, `-Configuration` (Debug/Release), `-SelfTest`, `-SelfTestSeconds`. Documented in root `README.md` and `docs/build.md`.
 
 ### 16.3 Responsibilities (in order)
 

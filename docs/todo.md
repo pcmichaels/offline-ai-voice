@@ -49,7 +49,7 @@ Implementation follows `docs/spec.md`. Execute phases in order.
 - [x] 2.1.4 - Create `utils/run-docker.ps1`: preflight, `docker compose build`, `docker compose up -d`, health wait
 - [x] 2.1.5 - Extend `utils/run-docker.ps1` to `dotnet build` and `dotnet run`; propagate exit codes
 - [x] 2.1.6 - Client startup: Spectre panel listing STT/TTS endpoint status (distinct from Phase 1 config-only view)
-- [x] 2.1.7 - Document `utils/run-docker.ps1` in `README.md`, `utils/README.md`, and `docs/build.md`
+- [x] 2.1.7 - Document `utils/run-docker.ps1` in root `README.md` and `docs/build.md`
 - [x] 2.1.8 - **Phase gate 2:** `.\utils\run-docker.ps1` completes; terminal shows STT + TTS health status (LM Studio not required)
 
 ---
@@ -138,7 +138,7 @@ Implementation follows `docs/spec.md`. Execute phases in order.
 - [x] 5b.1.6 - Rename `utils/run-docker.ps1` parameters `-MicTest` -> `-SelfTest`, `-MicTestSeconds` -> `-SelfTestSeconds`; pass `--self-test` to client
 - [x] 5b.1.7 - Deprecation aliases: accept `--mic-test` / `-MicTest` with one-time warning (optional)
 - [x] 5b.1.8 - Optional: when STT healthy, transcribe capture and print `Heard:` line
-- [x] 5b.1.9 - Update `README.md`, `utils/README.md`, `docs/build.md` (remove mic-test docs; document self-test)
+- [x] 5b.1.9 - Update root `README.md` and `docs/build.md` (remove mic-test docs; document self-test)
 - [x] 5b.1.10 - **Phase gate 5b:** `-SelfTest` plays configured phrase while recording; `Broadcast:` visible; changing `appsettings.json` phrase changes spoken output
 
 ---
@@ -171,7 +171,7 @@ Implementation follows `docs/spec.md`. Execute phases in order.
 
 **Estimated effort:** Small-Medium (1 day).
 
-**Run for phase gate:** `dotnet test` and `.\run-docker.ps1` full checklist (spec section 12).
+**Run for phase gate:** `dotnet test` and `.\utils\run-docker.ps1` full checklist (spec section 12).
 
 **New distinct behavior:** Test suite green; README "Implemented" list complete.
 

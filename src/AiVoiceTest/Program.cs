@@ -48,6 +48,11 @@ static async Task<int> RunAsync(string[] args)
                 services.AddAiVoiceTestInfrastructure(context.Configuration, repositoryRoot);
                 services.AddSingleton<PostTranscriptionReadbackRunner>();
                 services.AddSingleton<TranslationPromptRunner>();
+                services.AddSingleton<TypedTextReadAloudRunner>();
+                services.AddSingleton<RecordPlaybackRunner>();
+                services.AddSingleton<RecordTranslateReadAloudRunner>();
+                services.AddSingleton<VoiceSessionRunner>();
+                services.AddSingleton<MainMenuRunner>();
             })
             .Build();
 
@@ -83,6 +88,16 @@ static async Task<int> RunAsync(string[] args)
         }
 
         WelcomeBannerRenderer.Render(appOptions.Milestone);
+
+        if (llmOptions.LogRequestsToConsole)
+        {
+            AnsiConsole.MarkupLine(
+                "[dim]LM Studio request echo is ON — translation uses POST /v1/chat/completions.[/]");
+            AnsiConsole.MarkupLine(
+                $"[dim]Endpoint:[/] {Markup.Escape(llmOptions.BaseUrl.TrimEnd('/'))}/v1/chat/completions  " +
+                $"[dim]model:[/] [yellow]{Markup.Escape(llmOptions.Model)}[/]");
+            AnsiConsole.WriteLine();
+        }
 
         ConfigurationSummaryRenderer.Render(
             host.Services.GetRequiredService<IOptions<AppOptions>>(),
@@ -133,42 +148,14 @@ static async Task<int> RunAsync(string[] args)
                 seconds);
         }
 
+        if (IsVoiceChatMode(args))
+        {
+            return await RunVoiceChatSessionAsync(host, args);
+        }
+
         AnsiConsole.WriteLine();
         var healthChecker = host.Services.GetRequiredService<IServiceHealthChecker>();
         await ServiceHealthPanelRenderer.RenderAsync(healthChecker);
-
-        var sttHealth = await healthChecker.CheckSttAsync();
-        var ttsHealth = await healthChecker.CheckTtsAsync();
-        var llmHealth = await healthChecker.CheckLlmAsync();
-
-        if (!sttHealth.IsHealthy)
-        {
-            AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine(
-                "[red]STT service is not healthy.[/] Start Docker services with [yellow].\\utils\\run-docker.ps1[/] " +
-                "and ensure port 5001 is reachable.");
-            return 1;
-        }
-
-        if (!ttsHealth.IsHealthy)
-        {
-            AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine(
-                "[red]TTS service is not healthy.[/] Start Docker services with [yellow].\\utils\\run-docker.ps1[/] " +
-                "and ensure port 5002 is reachable.");
-            return 1;
-        }
-
-        if (!llmHealth.IsHealthy)
-        {
-            AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine(
-                "[red]LM Studio is not reachable.[/] Open LM Studio, load a model, start the local server, " +
-                $"then retry. Configured URL: [yellow]{Markup.Escape(llmOptions.BaseUrl)}[/]");
-            AnsiConsole.MarkupLine(
-                "[dim]run-docker.ps1 does not start LM Studio for you.[/]");
-            return 1;
-        }
 
         if (ShouldSkipInteractiveSession(args))
         {
@@ -179,19 +166,8 @@ static async Task<int> RunAsync(string[] args)
 
         AnsiConsole.WriteLine();
         AudioDeviceListRenderer.Render();
-        AnsiConsole.WriteLine();
 
-        var session = new VoiceSessionRunner(
-            host.Services.GetRequiredService<IAudioCaptureService>(),
-            host.Services.GetRequiredService<IVoiceSessionOrchestrator>(),
-            host.Services.GetRequiredService<ITextToSpeechService>(),
-            host.Services.GetRequiredService<IAudioPlaybackService>(),
-            host.Services.GetRequiredService<IOptions<AudioOptions>>(),
-            host.Services.GetRequiredService<IOptions<LlmOptions>>(),
-            host.Services.GetRequiredService<PostTranscriptionReadbackRunner>(),
-            host.Services.GetRequiredService<TranslationPromptRunner>());
-
-        await session.RunAsync();
+        await host.Services.GetRequiredService<MainMenuRunner>().RunAsync();
     }
     catch (Exception ex)
     {
@@ -201,6 +177,50 @@ static async Task<int> RunAsync(string[] args)
 
     return exitCode;
 }
+
+static async Task<int> RunVoiceChatSessionAsync(IHost host, string[] args)
+{
+    var healthChecker = host.Services.GetRequiredService<IServiceHealthChecker>();
+    await ServiceHealthPanelRenderer.RenderAsync(healthChecker);
+
+    var sttHealth = await healthChecker.CheckSttAsync();
+    var ttsHealth = await healthChecker.CheckTtsAsync();
+    var llmHealth = await healthChecker.CheckLlmAsync();
+
+    if (!sttHealth.IsHealthy)
+    {
+        AnsiConsole.MarkupLine("[red]STT service is not healthy.[/]");
+        return 1;
+    }
+
+    if (!ttsHealth.IsHealthy)
+    {
+        AnsiConsole.MarkupLine("[red]TTS service is not healthy.[/]");
+        return 1;
+    }
+
+    if (!llmHealth.IsHealthy)
+    {
+        AnsiConsole.MarkupLine("[red]LM Studio is not reachable.[/]");
+        return 1;
+    }
+
+    if (ShouldSkipInteractiveSession(args))
+    {
+        return 0;
+    }
+
+    AnsiConsole.WriteLine();
+    AudioDeviceListRenderer.Render();
+    AnsiConsole.MarkupLine("[dim]Voice-chat mode ([yellow]--voice-chat[/]).[/]");
+    AnsiConsole.WriteLine();
+
+    await host.Services.GetRequiredService<VoiceSessionRunner>().RunAsync();
+    return 0;
+}
+
+static bool IsVoiceChatMode(string[] args) =>
+    args.Contains("--voice-chat", StringComparer.OrdinalIgnoreCase);
 
 static bool ShouldSkipInteractiveSession(string[] args) =>
     args.Contains("--no-prompt", StringComparer.OrdinalIgnoreCase)

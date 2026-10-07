@@ -1,7 +1,6 @@
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using AiVoiceTest.Core.Chat;
 using AiVoiceTest.Core.Configuration;
 using AiVoiceTest.Core.Services;
@@ -72,7 +71,7 @@ public sealed class HttpLlmChatService : ILlmChatService
         _history.Add(new ChatMessage(ChatRoles.User, userText));
         ChatHistoryTrimmer.TrimInPlace(_history, _sessionOptions.MaxHistoryMessages);
 
-        var request = new ChatCompletionRequest
+        var request = new LlmChatCompletionRequest
         {
             Model = _llmOptions.Model,
             Messages = BuildMessagesPayload(),
@@ -83,6 +82,8 @@ public sealed class HttpLlmChatService : ILlmChatService
 
         var endpoint = CombineUrl(_llmOptions.BaseUrl, "/v1/chat/completions");
         var client = _httpClientFactory.CreateClient(LlmServiceCollectionExtensions.HttpClientName);
+
+        LlmConsoleEcho.LogRequest(_llmOptions, "assistant-chat", endpoint, request);
 
         try
         {
@@ -98,6 +99,8 @@ public sealed class HttpLlmChatService : ILlmChatService
             _history.Add(new ChatMessage(ChatRoles.Assistant, assistantText));
             ChatHistoryTrimmer.TrimInPlace(_history, _sessionOptions.MaxHistoryMessages);
 
+            LlmConsoleEcho.LogResponse(_llmOptions, "assistant-chat", assistantText);
+
             return assistantText;
         }
         catch
@@ -107,22 +110,22 @@ public sealed class HttpLlmChatService : ILlmChatService
         }
     }
 
-    private static async Task<string> SendBufferedAsync(
+    private async Task<string> SendBufferedAsync(
         string endpoint,
-        ChatCompletionRequest request,
+        LlmChatCompletionRequest request,
         HttpClient client,
         CancellationToken cancellationToken)
     {
         using var response = await client.PostAsJsonAsync(endpoint, request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await LlmConsoleEcho.EnsureSuccessAsync(response, "assistant-chat", cancellationToken);
 
-        var payload = await response.Content.ReadFromJsonAsync<ChatCompletionResponse>(cancellationToken);
+        var payload = await response.Content.ReadFromJsonAsync<LlmChatCompletionResponse>(cancellationToken);
         return payload?.Choices?.FirstOrDefault()?.Message?.Content?.Trim() ?? string.Empty;
     }
 
-    private static async Task<string> SendStreamingAsync(
+    private async Task<string> SendStreamingAsync(
         string endpoint,
-        ChatCompletionRequest request,
+        LlmChatCompletionRequest request,
         HttpClient client,
         IProgress<string> streamChunks,
         CancellationToken cancellationToken)
@@ -136,7 +139,7 @@ public sealed class HttpLlmChatService : ILlmChatService
             httpRequest,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await LlmConsoleEcho.EnsureSuccessAsync(response, "assistant-chat", cancellationToken);
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var reader = new StreamReader(stream);
@@ -196,14 +199,14 @@ public sealed class HttpLlmChatService : ILlmChatService
         return null;
     }
 
-    private List<ChatMessageDto> BuildMessagesPayload()
+    private List<LlmChatMessageDto> BuildMessagesPayload()
     {
         var messages = LlmConversationMessages.BuildPayload(
             _llmOptions.SystemPrompt,
             _history,
             _sessionOptions.MaxHistoryMessages);
 
-        return messages.Select(m => new ChatMessageDto(m.Role, m.Content)).ToList();
+        return messages.Select(m => new LlmChatMessageDto(m.Role, m.Content)).ToList();
     }
 
     private void RemoveTrailingUserMessage(string userText)
@@ -235,54 +238,4 @@ public sealed class HttpLlmChatService : ILlmChatService
         return $"{trimmed}{path}";
     }
 
-    private sealed class ChatCompletionRequest
-    {
-        [JsonPropertyName("model")]
-        public string Model { get; set; } = string.Empty;
-
-        [JsonPropertyName("messages")]
-        public List<ChatMessageDto> Messages { get; set; } = [];
-
-        [JsonPropertyName("temperature")]
-        public double Temperature { get; set; }
-
-        [JsonPropertyName("max_tokens")]
-        public int MaxTokens { get; set; }
-
-        [JsonPropertyName("stream")]
-        public bool Stream { get; set; }
-    }
-
-    private sealed class ChatMessageDto
-    {
-        public ChatMessageDto(string role, string content)
-        {
-            Role = role;
-            Content = content;
-        }
-
-        [JsonPropertyName("role")]
-        public string Role { get; set; }
-
-        [JsonPropertyName("content")]
-        public string Content { get; set; }
-    }
-
-    private sealed class ChatCompletionResponse
-    {
-        [JsonPropertyName("choices")]
-        public List<Choice>? Choices { get; set; }
-    }
-
-    private sealed class Choice
-    {
-        [JsonPropertyName("message")]
-        public ResponseMessage? Message { get; set; }
-    }
-
-    private sealed class ResponseMessage
-    {
-        [JsonPropertyName("content")]
-        public string? Content { get; set; }
-    }
 }

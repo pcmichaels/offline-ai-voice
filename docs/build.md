@@ -116,6 +116,10 @@ In `data/appsettings.json` under `Audio`:
 
 Set `Llm:StreamResponses` to `true` to print assistant tokens as they arrive from LM Studio (SSE). STT and TTS remain non-streaming.
 
+Set `Llm:LogRequestsToConsole` to `true` to echo each LM Studio **translation** and **assistant-chat** request (same `POST /v1/chat/completions` endpoint) and include the error body on HTTP 4xx/5xx.
+
+**400 Bad Request** from LM Studio usually means `Llm:Model` does not match a loaded model id. List ids with `GET http://localhost:1234/v1/models` and copy the exact `id` into `data/appsettings.json`.
+
 ### Post-transcription readback (Phase 8a)
 
 `PostTranscription` in `data/appsettings.json`:

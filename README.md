@@ -1,6 +1,7 @@
 ﻿# offline-ai-voice
 
-**Repository:** [github.com/pcmichaels/offline-ai-voice](https://github.com/pcmichaels/offline-ai-voice)
+**Repository:** [github.com/pcmichaels/offline-ai-voice](https://github.com/pcmichaels/offline-ai-voice)  
+This is the only project `README.md` (run-script details live here and in [docs/build.md](docs/build.md), not under `utils/`).
 
 ## Overview
 
@@ -114,7 +115,7 @@ Configuration summary only; service health checks will show `unreachable` unless
 - `docker/` - Docker Compose, Dockerfiles, STT/TTS HTTP services
 - `agents/` - Local agent personality files (gitignored; see `AGENTS.md`)
 - `data/` - Configuration and persisted data
-- `docs/` - `spec.md`, `todo.md`, `build.md`
+- `docs/` - `spec.md`, `todo.md`, `build.md`, `poc-checklist.md`
 - `src/` - Source code
 - `tests/` - Unit and integration test projects
 - `utils/` - Helper scripts and tools

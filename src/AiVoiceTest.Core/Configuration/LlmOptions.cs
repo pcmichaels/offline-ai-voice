@@ -15,4 +15,9 @@ public sealed class LlmOptions
     public int MaxTokens { get; set; } = 512;
 
     public bool StreamResponses { get; set; }
+
+    /// <summary>
+    /// When true, prints each LM Studio chat-completions request/response summary to the console.
+    /// </summary>
+    public bool LogRequestsToConsole { get; set; }
 }

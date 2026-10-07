@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using System.Text.Json.Serialization;
 using AiVoiceTest.Core.Configuration;
 using AiVoiceTest.Core.Services;
 using AiVoiceTest.Core.Session;
@@ -32,15 +31,15 @@ public sealed class HttpTranslationService : ITranslationService
 
         var targetLanguage = language.Value;
 
-        var request = new ChatCompletionRequest
+        var request = new LlmChatCompletionRequest
         {
             Model = _llmOptions.Model,
             Messages =
             [
-                new ChatMessageDto(
+                new LlmChatMessageDto(
                     "system",
                     "You are a translator. Output only the translation, no commentary."),
-                new ChatMessageDto(
+                new LlmChatMessageDto(
                     "user",
                     $"Translate the following text to {targetLanguage.LlmLanguageName}:\n\n{sourceText}"),
             ],
@@ -51,16 +50,20 @@ public sealed class HttpTranslationService : ITranslationService
         var endpoint = CombineUrl(_llmOptions.BaseUrl, "/v1/chat/completions");
         var client = _httpClientFactory.CreateClient(LlmServiceCollectionExtensions.HttpClientName);
 
-        using var response = await client.PostAsJsonAsync(endpoint, request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        LlmConsoleEcho.LogRequest(_llmOptions, "translation", endpoint, request);
 
-        var payload = await response.Content.ReadFromJsonAsync<ChatCompletionResponse>(cancellationToken);
+        using var response = await client.PostAsJsonAsync(endpoint, request, cancellationToken);
+        await LlmConsoleEcho.EnsureSuccessAsync(response, "translation", cancellationToken);
+
+        var payload = await response.Content.ReadFromJsonAsync<LlmChatCompletionResponse>(cancellationToken);
         var translated = payload?.Choices?.FirstOrDefault()?.Message?.Content?.Trim();
 
         if (string.IsNullOrWhiteSpace(translated))
         {
             throw new InvalidOperationException("LM Studio returned an empty translation.");
         }
+
+        LlmConsoleEcho.LogResponse(_llmOptions, "translation", translated);
 
         return translated;
     }
@@ -69,47 +72,5 @@ public sealed class HttpTranslationService : ITranslationService
     {
         var trimmed = baseUrl.TrimEnd('/');
         return $"{trimmed}{path}";
-    }
-
-    private sealed class ChatCompletionRequest
-    {
-        [JsonPropertyName("model")]
-        public string Model { get; set; } = string.Empty;
-
-        [JsonPropertyName("messages")]
-        public List<ChatMessageDto> Messages { get; set; } = [];
-
-        [JsonPropertyName("temperature")]
-        public double Temperature { get; set; }
-
-        [JsonPropertyName("max_tokens")]
-        public int MaxTokens { get; set; }
-    }
-
-    private sealed class ChatMessageDto(string role, string content)
-    {
-        [JsonPropertyName("role")]
-        public string Role { get; set; } = role;
-
-        [JsonPropertyName("content")]
-        public string Content { get; set; } = content;
-    }
-
-    private sealed class ChatCompletionResponse
-    {
-        [JsonPropertyName("choices")]
-        public List<Choice>? Choices { get; set; }
-    }
-
-    private sealed class Choice
-    {
-        [JsonPropertyName("message")]
-        public ResponseMessage? Message { get; set; }
-    }
-
-    private sealed class ResponseMessage
-    {
-        [JsonPropertyName("content")]
-        public string? Content { get; set; }
     }
 }

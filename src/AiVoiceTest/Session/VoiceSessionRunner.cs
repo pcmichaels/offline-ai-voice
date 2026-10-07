@@ -71,7 +71,7 @@ public sealed class VoiceSessionRunner
             AnsiConsole.Markup("[bold]Ready — press Enter to record[/] ([yellow]q[/] to exit): ");
             var command = Console.ReadLine();
 
-            if (IsQuit(command))
+            if (SessionInput.IsReturnToMenu(command))
             {
                 break;
             }
@@ -81,7 +81,10 @@ public sealed class VoiceSessionRunner
 
             try
             {
-                recordedPath = await RecordUtteranceAsync(cancellationToken);
+                recordedPath = await AudioRecordingHelper.RecordUtteranceAsync(
+                    _audioCapture,
+                    _audioOptions,
+                    cancellationToken);
 
                 var transcription = await AnsiConsole.Status()
                     .Spinner(Spinner.Known.Dots)
@@ -181,8 +184,8 @@ public sealed class VoiceSessionRunner
             }
             finally
             {
-                TryDeleteFile(recordedPath);
-                TryDeleteFile(ttsPath);
+                AudioRecordingHelper.TryDeleteFile(recordedPath);
+                AudioRecordingHelper.TryDeleteFile(ttsPath);
             }
         }
     }
@@ -211,58 +214,4 @@ public sealed class VoiceSessionRunner
         return turn;
     }
 
-    private async Task<string> RecordUtteranceAsync(CancellationToken cancellationToken)
-    {
-        var stopRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var recordTask = _audioCapture.RecordToWavFileAsync(stopRequested.Task, cancellationToken);
-
-        if (_audioOptions.UseVoiceActivityDetection)
-        {
-            AnsiConsole.MarkupLine(
-                "[yellow]Recording — speak now.[/] Stops after silence or press [bold]Enter[/].");
-            _ = Task.Run(() =>
-            {
-                Console.ReadLine();
-                stopRequested.TrySetResult();
-            }, cancellationToken);
-        }
-        else
-        {
-            AnsiConsole.MarkupLine("[yellow]Recording — speak now.[/] Press [bold]Enter[/] when finished.");
-            await Task.Run(Console.ReadLine, cancellationToken);
-            stopRequested.TrySetResult();
-        }
-
-        var path = await AnsiConsole.Status()
-            .Spinner(Spinner.Known.Star)
-            .StartAsync("Finishing capture...", async _ => await recordTask);
-
-        AnsiConsole.MarkupLine(
-            $"[dim]Captured audio from[/] [cyan]{Markup.Escape(_audioCapture.CaptureDeviceName)}[/]");
-
-        return path;
-    }
-
-    private static bool IsQuit(string? input) =>
-        string.Equals(input?.Trim(), "q", StringComparison.OrdinalIgnoreCase);
-
-    private static void TryDeleteFile(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return;
-        }
-
-        try
-        {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
-        catch
-        {
-            // Best-effort cleanup for temp WAV files.
-        }
-    }
 }

@@ -4,7 +4,14 @@ public static class TranslationChoiceResolver
 {
     public static readonly IReadOnlyList<string> PromptChoices = ["Skip", "Spanish", "Mandarin", "German"];
 
+    public static readonly IReadOnlyList<string> LanguagePromptChoices = ["Spanish", "Mandarin", "German"];
+
     public static TranslationLanguage? ResolvePromptChoice(string? choice) =>
+        string.Equals(choice, "Skip", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : ResolveLanguageChoice(choice);
+
+    public static TranslationLanguage? ResolveLanguageChoice(string? choice) =>
         choice switch
         {
             "Spanish" => Find(TranslationLanguages.SpanishCode),

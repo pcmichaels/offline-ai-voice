@@ -9,9 +9,9 @@ public sealed class TranslationChoiceResolverTests
     [InlineData("Spanish", TranslationLanguages.SpanishCode)]
     [InlineData("Mandarin", TranslationLanguages.MandarinCode)]
     [InlineData("German", TranslationLanguages.GermanCode)]
-    public void ResolvePromptChoice_WhenLanguageSelected_ReturnsCode(string choice, string expectedCode)
+    public void ResolveLanguageChoice_WhenLanguageSelected_ReturnsCode(string choice, string expectedCode)
     {
-        var language = TranslationChoiceResolver.ResolvePromptChoice(choice);
+        var language = TranslationChoiceResolver.ResolveLanguageChoice(choice);
 
         Assert.NotNull(language);
         Assert.Equal(expectedCode, language.Value.Code);
@@ -24,5 +24,12 @@ public sealed class TranslationChoiceResolverTests
     public void ResolvePromptChoice_WhenSkipOrUnknown_ReturnsNull(string? choice)
     {
         Assert.Null(TranslationChoiceResolver.ResolvePromptChoice(choice));
+    }
+
+    [Fact]
+    public void LanguagePromptChoices_DoNotIncludeSkip()
+    {
+        Assert.DoesNotContain("Skip", TranslationChoiceResolver.LanguagePromptChoices);
+        Assert.Equal(3, TranslationChoiceResolver.LanguagePromptChoices.Count);
     }
 }

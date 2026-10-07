@@ -29,6 +29,7 @@ public static class ConfigurationSummaryRenderer
         table.AddRow("Llm", "BaseUrl", llm.Value.BaseUrl);
         table.AddRow("Llm", "Model", llm.Value.Model);
         table.AddRow("Llm", "StreamResponses", llm.Value.StreamResponses.ToString());
+        table.AddRow("Llm", "LogRequestsToConsole", llm.Value.LogRequestsToConsole.ToString());
         table.AddRow("Stt", "Mode", stt.Value.Mode);
         table.AddRow("Stt", "ServiceUrl", stt.Value.ServiceUrl);
         table.AddRow("Stt", "ModelSize", stt.Value.ModelSize);
